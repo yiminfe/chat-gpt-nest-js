@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>聊天窗口</title>
+
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #f5f5f5;
+      }
+
+      #chat-history {
+        height: 400px;
+        overflow-y: scroll;
+        border: 1px solid #ccc;
+        padding: 10px;
+        margin-bottom: 10px;
+      }
+
+      #chat-input {
+        width: 80%;
+        padding: 10px;
+        font-size: 16px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+      }
+
+      #send-button {
+        padding: 10px;
+        font-size: 16px;
+        border-radius: 5px;
+        background-color: #4caf50;
+        color: #fff;
+        border: none;
+        cursor: pointer;
+      }
+
+      #send-button:hover {
+        background-color: #3e8e41;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="chat-history"></div>
+    <div>
+      <input type="text" id="chat-input" />
+      <button id="send-button">发送</button>
+    </div>
+    <script>
+      // 获取聊天记录显示区域和发送按钮
+      const chatHistory = document.getElementById('chat-history')
+      const sendButton = document.getElementById('send-button')
+
+      const messages = []
+      // 发送按钮的点击事件
+      sendButton.addEventListener('click', () => {
+        // 获取输入文本框的内容
+        const message = document.getElementById('chat-input').value
+        const currentMessage = {
+          role: 'user',
+          content: message
+        }
+        messages.push(currentMessage)
+        // 清空输入文本框
+        document.getElementById('chat-input').value = ''
+        clearText(currentMessage)
+        fetchOpenChat()
+      })
+
+      function parseChunk(chunk) {
+        const regex = /data: __aidata: ([^\0]*?)\ndata:/gs
+
+        let match,
+          arr = []
+        do {
+          match = regex.exec(chunk)
+          if (match) arr.push(match[1].trim())
+        } while (match)
+
+        const res = []
+        for (const item of arr) {
+          if (item !== '[DONE]') {
+            try {
+              let parsedData = JSON.parse(item)
+              res.push(parsedData)
+            } catch (e) {
+              console.log(item)
+              console.error('error:', e)
+            }
+          } else {
+            res.push('DONE')
+          }
+        }
+
+        return res
+      }
+
+      function fetchOpenChat() {
+        fetch('http://localhost:3050/openai/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            accept: 'text/event-stream'
+          },
+          body: JSON.stringify({
+            messages
+          })
+        })
+          .then(response => {
+            const reader = response.body.getReader()
+
+            const message = {
+              role: '',
+              content: ''
+            }
+
+            let currentMessageElement = null
+            // 读取数据流
+            reader.read().then(function processResult(result) {
+              // 将数据流挨个打印出来
+              if (result.done) {
+                messages.push(message)
+                console.log('请求完成', messages)
+                clearText(message, currentMessageElement)
+                return
+              }
+
+              const chunk = new TextDecoder('utf-8').decode(result.value)
+              const data = parseChunk(chunk)
+              for (const item of data) {
+                if (item !== 'DONE') {
+                  for (const choice of item.choices) {
+                    if (choice.finish_reason !== 'stop') {
+                      const { delta } = choice
+                      const { role, content } = delta
+                      if (role) {
+                        message.role = role
+                        currentMessageElement = clearText(message)
+                      }
+                      if (content) {
+                        message.content += content
+                        clearText(message, currentMessageElement)
+                      }
+                    }
+                  }
+                }
+              }
+
+              return reader.read().then(processResult)
+            })
+          })
+          .catch(error => console.error(error))
+      }
+
+      function clearText(message, currentMessageElement) {
+        const { role, content } = message
+        // 将输入的消息添加到聊天记录显示区域中
+        let messageElement = null
+        if (currentMessageElement) {
+          messageElement = currentMessageElement
+        } else {
+          messageElement = document.createElement('div')
+          chatHistory.appendChild(messageElement)
+        }
+        messageElement.innerText = `role: ${role}, content: ${content}`
+
+        // 滚动到聊天记录的底部
+        chatHistory.scrollTop = chatHistory.scrollHeight
+        return messageElement
+      }
+    </script>
+  </body>
+</html>
