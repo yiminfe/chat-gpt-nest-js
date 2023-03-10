@@ -1,11 +1,12 @@
 import { AxiosRequestConfig } from 'axios'
 
-const OPENAI_API_KEY = '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'
+const OPENAI_API_KEY = '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'
 
 export const openAiRequestConfig: AxiosRequestConfig = {
   baseURL: 'https://api.openai.com/',
   headers: {
     'content-type': 'application/json',
+    accept: 'text/event-stream',
     Authorization: `Bearer ${OPENAI_API_KEY}`
   }
 }

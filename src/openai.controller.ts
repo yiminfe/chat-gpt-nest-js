@@ -2,7 +2,6 @@ import { Controller, Post, Body, Header, Sse } from '@nestjs/common'
 import { OpenAiService } from './openai.service'
 import { OpenAiDto } from '@/dtos/openai.dto'
 import { Observable } from 'rxjs'
-import { json } from 'stream/consumers'
 
 @Controller('openai')
 export class OpenAiController {
